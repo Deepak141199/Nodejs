@@ -47,6 +47,44 @@ app.get('/products', async (req, res) => {
     }
   });
 
+  // Retrieve an individual product by ID
+app.get('/products/:productId', async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    
+    // Find the product by ID
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    res.json(product);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+// Create a new product
+app.post('/products', async (req, res) => {
+  try {
+    const { name, price } = req.body;
+    
+    // Create a new product document
+    const product = new Product({ name, price });
+    
+    // Save the product to the database
+    await product.save();
+    
+    res.status(201).json(product); // Respond with the created product
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
