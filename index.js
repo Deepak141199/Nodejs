@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('./db'); // Import the database connection setup
 const User = require('./models/user'); // Import the User model
 const Product = require('./models/product'); // Import the Product model
+const jwt = require('jsonwebtoken');
+const secretkey="secretkey";
 
 const app = express();
 const port = 3001;
@@ -48,9 +50,15 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Here, you can generate a token for authentication
+      // Generate a JWT token
+    const token = jwt.sign({ username }, secretkey, { expiresIn: '300s' });
+
+    // Store the token in the user document
+    user.token = token;
+    await user.save();
+
     // For simplicity, we'll just send a success message
-    res.status(200).json({ message: 'Authentication successful' });
+    res.status(200).json({ message: 'Authentication successful',token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -89,7 +97,7 @@ app.get('/products/:productId', async (req, res) => {
 });
 
 // Create a new product
-app.post('/products', async (req, res) => {
+app.post('/products', verifyToken ,async (req, res) => {
   try {
     const { name, price } = req.body;
     
@@ -106,6 +114,50 @@ app.post('/products', async (req, res) => {
   }
 });
 
+// Update an existing product (Secured with JWT authentication)
+app.put('/products/:productId', verifyToken, async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const { name, price } = req.body;
+
+    // Find the product by ID
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Update the product properties
+    product.name = name;
+    product.price = price;
+
+    // Save the updated product to the database
+    await product.save();
+
+    res.status(200).json(product);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+//middleware to verify token
+
+function verifyToken(req, res, next) {
+  const token = req.headers['authorization'];
+
+  if (typeof token === 'undefined') {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  jwt.verify(token, secretkey, (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    req.user = user;
+    next();
+  });
+}
 
 // Start the server
 app.listen(port, () => {

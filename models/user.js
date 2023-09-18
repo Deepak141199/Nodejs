@@ -12,6 +12,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+
+// Add a field to store the JWT token
+token: String,
   // You can add more fields for user profile information
 });
 
