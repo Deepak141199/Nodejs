@@ -1,7 +1,6 @@
-// Import Mongoose
 const mongoose = require('mongoose');
 
-// Define the Product schema
+// Product schema
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -14,7 +13,7 @@ const productSchema = new mongoose.Schema({
 
 });
 
-// Create the Product model
+// Product model
 const Product = mongoose.model('Product', productSchema,'product');
 
 module.exports = Product;

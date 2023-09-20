@@ -50,26 +50,26 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-      // Generate a JWT token
-    const token = jwt.sign({ username }, secretkey, { expiresIn: '300s' });
+    // Generate a JWT token
+    const token = jwt.sign({ username }, secretkey, { expiresIn: '3000s' });
 
-    // Store the token in the user document
-    user.token = token;
-    await user.save();
+    // Fetch user profile data from the UserProfile model
+    const userProfile = await User.findOne({ username });
 
-    // For simplicity, we'll just send a success message
-    res.status(200).json({ message: 'Authentication successful',token });
+    // For simplicity, we'll just send a success message and the token
+    res.status(200).json({ message: 'Authentication successful', token, userProfile });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
 
+
 // Route to retrieve and display products
 app.get('/products', async (req, res) => {
     try {
       // Retrieve all products from the database
-      const products = await Product.find({});
+      const products= await Product.find({});
       res.json(products);
     } catch (error) {
       console.error(error);
@@ -96,29 +96,52 @@ app.get('/products/:productId', async (req, res) => {
   }
 });
 
-// Create a new product
-app.post('/products', verifyToken ,async (req, res) => {
+function verifyToken(req, res, next) {
+  const token = req.headers['authorization'];
+
+  if (typeof token === 'undefined') {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  jwt.verify(token, secretkey , (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    req.user = user;
+    next();
+  });
+}
+// Create a new product (Secured with JWT authentication)
+app.post('/products', verifyToken, async (req, res) => {
   try {
+    // Get the product data from the request body
     const { name, price } = req.body;
-    
-    // Create a new product document
+
+    // Validate the product data
+    if (!name || !price) {
+      return res.status(400).json({ message: 'Product name and price are required' });
+    }
+
+    // Create and save the product to the database
     const product = new Product({ name, price });
-    
-    // Save the product to the database
     await product.save();
-    
+
     res.status(201).json(product); // Respond with the created product
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 // Update an existing product (Secured with JWT authentication)
 app.put('/products/:productId', verifyToken, async (req, res) => {
   try {
     const productId = req.params.productId;
     const { name, price } = req.body;
+
+    // Validate the product data
+    if (!name || !price) {
+      return res.status(400).json({ message: 'Product name and price are required' });
+    }
 
     // Find the product by ID
     const product = await Product.findById(productId);
@@ -140,24 +163,58 @@ app.put('/products/:productId', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+app.get('/profile',verifyToken, async (req, res) => {
+  try {
 
-//middleware to verify token
+    // Find the user by username
+    const user = await User.findOne({ username:req.user.username });
 
-function verifyToken(req, res, next) {
-  const token = req.headers['authorization'];
-
-  if (typeof token === 'undefined') {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
-  jwt.verify(token, secretkey, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: 'Forbidden' });
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found' });
     }
-    req.user = user;
-    next();
-  });
-}
+
+    // Respond with the user's profile data
+    res.status(200).json(user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+// Route to update the user's username by user ID
+app.put('/profile/:userId', verifyToken, async (req, res) => {
+  try {
+    // Get the new username from the request body
+    const newUsername = req.body.username;
+
+    // Check if a new username was provided
+    if (!newUsername) {
+      return res.status(400).json({ message: 'New username is required' });
+    }
+
+    // Find the user by the provided user ID
+    const userId = req.params.userId;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update the username
+    user.username = newUsername;
+
+    // Save the updated user data
+    await user.save();
+
+    res.status(200).json({ message: 'Username updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+
+
+
 
 // Start the server
 app.listen(port, () => {
