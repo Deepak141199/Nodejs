@@ -6,9 +6,11 @@ const jwt = require('jsonwebtoken');
 const CustomError = require('./customerror');
 const ValidationError = require('./customerror');
 const handleGlobalError = require('./globalerror');
+const cartRoutes = require('./routes/cart');
 const secretkey="secretkey";
 
 const app = express();
+app.use('/cart', cartRoutes); 
 const port = 3001;
 
 // Middleware
