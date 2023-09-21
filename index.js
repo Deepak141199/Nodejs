@@ -3,6 +3,9 @@ const mongoose = require('./db'); // Import the database connection setup
 const User = require('./models/user'); // Import the User model
 const Product = require('./models/product'); // Import the Product model
 const jwt = require('jsonwebtoken');
+const CustomError = require('./customerror');
+const ValidationError = require('./customerror');
+const handleGlobalError = require('./globalerror');
 const secretkey="secretkey";
 
 const app = express();
@@ -76,25 +79,58 @@ app.get('/products', async (req, res) => {
       res.status(500).json({ message: 'Internal Server Error' });
     }
   });
-
-  // Retrieve an individual product by ID
-app.get('/products/:productId', async (req, res) => {
-  try {
-    const productId = req.params.productId;
-    
-    // Find the product by ID
-    const product = await Product.findById(productId);
-    
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+  app.get('/products/:productId', async (req, res, next) => {
+    try {
+      const productId = req.params.productId;
+  
+      // Find the product by ID
+      const product = await Product.findById(productId);
+  
+      if (!product) {
+        throw new CustomError('Product not found'); // Use the CustomError class
+      }
+  
+      res.json(product);
+    } catch (error) {
+      next(error);
     }
-    
-    res.json(product);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
+  });
+
+  // Custom error handler for handling instances of CustomError
+app.use((error, req, res, next) => {
+  if (error instanceof CustomError) {
+    return res.status(error.statusCode).json({ message: error.message });
   }
+  // If it's not a CustomError, pass it to the next error handler
+  next(error);
 });
+
+// Use the global error handler as the last error-handling middleware
+app.use(handleGlobalError);
+  
+  // Create a new product (Secured with JWT authentication)
+  app.post('/products', verifyToken, async (req, res,next) => {
+    try {
+      // Get the product data from the request body
+      const { name, price } = req.body;
+  
+      // Validate the product data
+      if (!name || !price) {
+        throw new ValidationError('Product name and price are required');
+      }
+  
+      // Create and save the product to the database
+      const product = new Product({ name, price });
+      await product.save();
+  
+      res.status(201).json(product); // Respond with the created product
+    } catch (error) {
+      next(error);
+    }
+  });
+  // Use the global error handler as the last error-handling middleware
+app.use(handleGlobalError);
+
 
 function verifyToken(req, res, next) {
   const token = req.headers['authorization'];
@@ -111,27 +147,7 @@ function verifyToken(req, res, next) {
     next();
   });
 }
-// Create a new product (Secured with JWT authentication)
-app.post('/products', verifyToken, async (req, res) => {
-  try {
-    // Get the product data from the request body
-    const { name, price } = req.body;
 
-    // Validate the product data
-    if (!name || !price) {
-      return res.status(400).json({ message: 'Product name and price are required' });
-    }
-
-    // Create and save the product to the database
-    const product = new Product({ name, price });
-    await product.save();
-
-    res.status(201).json(product); // Respond with the created product
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-});
 // Update an existing product (Secured with JWT authentication)
 app.put('/products/:productId', verifyToken, async (req, res) => {
   try {
@@ -214,8 +230,16 @@ app.put('/profile/:userId', verifyToken, async (req, res) => {
 });
 
 
+// Define an error handler middleware
+app.use((error, req, res, next) => {
+  console.error(error);
 
+  if (error instanceof CustomError) {
+    return res.status(error.statusCode).json({ message: error.message });
+  }
 
+  
+});
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
