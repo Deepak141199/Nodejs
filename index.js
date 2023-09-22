@@ -10,7 +10,7 @@ const cartRoutes = require('./routes/cart');
 const secretkey="secretkey";
 
 const app = express();
-app.use('/cart', cartRoutes); a
+app.use('/cart', cartRoutes); 
 const port = 3001;
 
 // Middleware
